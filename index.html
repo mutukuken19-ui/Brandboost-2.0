@@ -1,0 +1,223 @@
+<!--
+BrandBoost — Tailwind + React (CDN) Single‑File App
+Ready for GitHub Pages:
+1. Save as index.html
+2. Push to GitHub
+3. Enable GitHub Pages → Works immediately (no build step)
+Uses:
+- React 18 via CDN
+- Tailwind CSS via CDN
+- LocalStorage for ads and users (same as previous version)
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BrandBoost — Advertise Your Business</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #f8fafc; }
+  </style>
+</head>
+<body class="text-gray-900">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    /* Utility */
+    const DB = {
+      get: (k) => JSON.parse(localStorage.getItem(k) || 'null'),
+      set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+    };
+
+    const uid = () => 'id-' + Math.random().toString(36).slice(2, 9);
+    const categories = [
+      'Services', 'Food & Drink', 'Retail', 'Health',
+      'Education', 'Automotive', 'Home', 'Events'
+    ];
+
+    // Seed sample ads
+    if (!DB.get('ads')) {
+      DB.set('ads', [
+        { id: uid(), title: 'Mama Kafe — Local cafe', category: 'Food & Drink', price: 'Free delivery', desc: 'Cozy cafe near campus', img: '', author: 'system', created: Date.now() },
+        { id: uid(), title: 'QuickFix Auto Repairs', category: 'Automotive', price: 'KES 1500+', desc: 'Brake, diagnostics, towing', img: '', author: 'system', created: Date.now() - 86400000 },
+      ]);
+    }
+    if (!DB.get('users')) DB.set('users', []);
+
+    /* React App */
+    function App() {
+      const [q, setQ] = React.useState('');
+      const [ads, setAds] = React.useState(DB.get('ads') || []);
+      const [filterCat, setFilterCat] = React.useState('');
+      const [modal, setModal] = React.useState(null);
+      const [user, setUser] = React.useState(() => JSON.parse(sessionStorage.getItem('bb_user') || 'null'));
+
+      const refreshAds = () => setAds(DB.get('ads') || []);
+
+      const filteredAds = ads
+        .filter(a => (q ? (a.title + ' ' + a.desc).toLowerCase().includes(q.toLowerCase()) : true))
+        .filter(a => (filterCat ? a.category === filterCat : true))
+        .sort((a, b) => b.created - a.created);
+
+      const login = (u, p) => {
+        let users = DB.get('users') || [];
+        const found = users.find(x => x.username === u);
+        if (found) {
+          if (found.pwd !== p) return alert('Wrong password');
+          sessionStorage.setItem('bb_user', JSON.stringify(found));
+          setUser(found); return;
+        }
+        const nu = { id: uid(), username: u, pwd: p, isAdmin: users.length === 0 };
+        users.push(nu); DB.set('users', users);
+        sessionStorage.setItem('bb_user', JSON.stringify(nu));
+        setUser(nu);
+        alert('Account created');
+      };
+
+      const postAd = (a) => {
+        const list = DB.get('ads') || [];
+        list.push(a); DB.set('ads', list);
+        refreshAds();
+      };
+
+      return (
+        <div>
+          {/* Header */}
+          <header class="bg-white shadow p-4 flex flex-col md:flex-row md:items-center gap-3 sticky top-0 z-10">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-cyan-600 text-white rounded-lg flex items-center justify-center font-bold">BB</div>
+              <div>
+                <div class="font-bold text-lg">BrandBoost</div>
+                <div class="text-xs text-gray-500">Advertise Your Business</div>
+              </div>
+            </div>
+
+            <div class="flex flex-1 max-w-xl mx-auto w-full">
+              <input
+                value={q}
+                onChange={e => setQ(e.target.value)}
+                placeholder="Search businesses..."
+                class="flex-1 p-2 border rounded-l-lg outline-none"
+              />
+              <button class="bg-cyan-600 text-white px-4 rounded-r-lg">Search</button>
+            </div>
+
+            <div class="flex gap-2">
+              <button class="px-3 py-2 border rounded" onClick={() => setModal('admin')}>Admin</button>
+              <button class="px-3 py-2 border rounded" onClick={() => setModal('post')}>Post Ad</button>
+              <button class="px-3 py-2 bg-cyan-600 text-white rounded" onClick={() => setModal('auth')}>
+                {user ? user.username : 'Login / Sign Up'}
+              </button>
+            </div>
+          </header>
+
+          {/* Categories */}
+          <div class="p-4 flex gap-2 flex-wrap">
+            {categories.map(c => (
+              <button
+                key={c}
+                class={`px-3 py-1 border rounded-full ${filterCat === c ? 'bg-cyan-600 text-white' : 'bg-white'}`}
+                onClick={() => setFilterCat(c)}
+              >
+                {c}
+              </button>
+            ))}
+            <button
+              class="px-3 py-1 border rounded-full"
+              onClick={() => setFilterCat('')}
+            >All</button>
+          </div>
+
+          {/* Ads Grid */}
+          <div class="p-4 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {filteredAds.map(a => (
+              <div key={a.id} class="bg-white p-3 rounded-xl shadow cursor-pointer" onClick={() => setModal(a)}>
+                <div class="h-32 bg-gray-200 rounded mb-2 flex items-center justify-center text-gray-500 text-sm">
+                  {a.category}
+                </div>
+                <div class="font-semibold">{a.title}</div>
+                <div class="text-sm text-gray-500">{a.category} • {a.price}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Modals */}
+          {modal && <Modal modal={modal} setModal={setModal} user={user} login={login} postAd={postAd} refreshAds={refreshAds} />}
+        </div>
+      );
+    }
+
+    /* Modal Component */
+    function Modal({ modal, setModal, user, login, postAd, refreshAds }) {
+      const [form, setForm] = React.useState({ title: '', category: categories[0], price: '', desc: '' });
+      const isAdView = typeof modal === 'object';
+
+      const submitAd = () => {
+        if (!user) return alert('Login first');
+        if (!form.title || !form.desc) return alert('Missing fields');
+        postAd({ ...form, id: uid(), author: user.username, created: Date.now(), img: '' });
+        setModal(null);
+      };
+
+      return (
+        <div class="fixed inset-0 bg-black/40 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setModal(null)}>
+          <div class="bg-white p-5 rounded-xl max-w-lg w-full">
+            {/* Auth */}
+            {modal === 'auth' && (
+              <Auth login={login} close={() => setModal(null)} />
+            )}
+
+            {/* Post */}
+            {modal === 'post' && (
+              <div>
+                <h2 class="text-lg font-bold mb-2">Create Ad</h2>
+                <input class="w-full p-2 border rounded mb-2" placeholder="Title" onChange={e => setForm({ ...form, title: e.target.value })} />
+                <select class="w-full p-2 border rounded mb-2" onChange={e => setForm({ ...form, category: e.target.value })}>
+                  {categories.map(c => <option key={c}>{c}</option>)}
+                </select>
+                <input class="w-full p-2 border rounded mb-2" placeholder="Price / Details" onChange={e => setForm({ ...form, price: e.target.value })} />
+                <textarea class="w-full p-2 border rounded mb-2" placeholder="Description" onChange={e => setForm({ ...form, desc: e.target.value })}></textarea>
+                <button class="bg-cyan-600 text-white px-4 py-2 rounded" onClick={submitAd}>Post</button>
+              </div>
+            )}
+
+            {/* View Ad */}
+            {isAdView && (
+              <div>
+                <h2 class="text-xl font-bold">{modal.title}</h2>
+                <div class="text-gray-500">{modal.category} • {modal.price}</div>
+                <p class="mt-2 text-sm">{modal.desc}</p>
+                <div class="mt-4 text-sm text-gray-500">Posted by <b>{modal.author}</b></div>
+                <div class="text-right mt-4">
+                  <button class="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /* Auth Form */
+    function Auth({ login, close }) {
+      const [u, setU] = React.useState('');
+      const [p, setP] = React.useState('');
+
+      return (
+        <div>
+          <h2 class="text-lg font-bold mb-2">Login / Sign Up</h2>
+          <input class="w-full p-2 border rounded mb-2" placeholder="Username" onChange={e => setU(e.target.value)} />
+          <input class="w-full p-2 border rounded mb-2" type="password" placeholder="Password" onChange={e => setP(e.target.value)} />
+          <button class="bg-cyan-600 text-white px-4 py-2 rounded" onClick={() => login(u, p)}>Continue</button>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
