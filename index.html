@@ -202,6 +202,54 @@ Uses:
       );
     }
 
+    {/* Admin (only for admin users) */}
+{modal === 'admin' && user?.isAdmin && (
+  <div>
+    <h2 class="text-lg font-bold mb-3">Admin Panel</h2>
+    <p class="mb-2 font-semibold">All Ads:</p>
+    {(DB.get('ads') || []).map(ad => (
+      <div key={ad.id} class="mb-1 bg-gray-100 p-2 rounded flex justify-between items-center">
+        <span>{ad.title} ({ad.author})</span>
+        <button
+          class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded"
+          onClick={() => {
+            const ads = (DB.get('ads') || []).filter(a => a.id !== ad.id);
+            DB.set('ads', ads);
+            refreshAds();
+            setModal('admin');
+          }}
+        >Delete</button>
+      </div>
+    ))}
+
+    <p class="mt-4 mb-2 font-semibold">All Users:</p>
+    {(DB.get('users') || []).map(u => (
+      <div key={u.id} class="mb-1 bg-gray-100 p-2 rounded flex justify-between items-center">
+        <span>{u.username} {u.isAdmin && <b>(admin)</b>}</span>
+        {!u.isAdmin && (
+          <button
+            class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded"
+            onClick={() => {
+              const users = (DB.get('users') || []).filter(us => us.id !== u.id);
+              DB.set('users', users);
+              setModal('admin');
+            }}
+          >Delete</button>
+        )}
+      </div>
+    ))}
+    <div class="text-right mt-3">
+      <button class="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
+    </div>
+  </div>
+)}
+{modal === 'admin' && !user?.isAdmin && (
+  <div>
+    <h2 class="text-lg font-bold mb-2">Admin Access</h2>
+    <p class="mb-3">You must be an admin to access this section.</p>
+    <button class="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
+  </div>
+)}
     /* Auth Form */
     function Auth({ login, close }) {
       const [u, setU] = React.useState('');
@@ -221,3 +269,4 @@ Uses:
   </script>
 </body>
 </html>
+
