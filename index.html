@@ -62,7 +62,7 @@ Uses:
         .filter(a => (q ? (a.title + ' ' + a.desc).toLowerCase().includes(q.toLowerCase()) : true))
         .filter(a => (filterCat ? a.category === filterCat : true))
         .sort((a, b) => b.created - a.created);
-
+      
       const signup = (u, p) => {
   let users = DB.get('users') || [];
   if (users.find(x => x.username === u)) return alert('Username already taken');
@@ -155,7 +155,12 @@ Uses:
             ))}
           </div>
 
-      {modal && <Modal modal={modal} setModal={setModal} user={user} login={login} postAd={postAd} refreshAds={refreshAds} />}
+      {modal && <Modal modal={modal} setModal={setModal} user={user} login={login} signup={signup} postAd={postAd} refreshAds={refreshAds} />}
+
+        </div>
+      );
+    }
+
           
     /* Modal Component */
     function Modal({ modal, setModal, user, login, postAd, refreshAds }) {
@@ -174,7 +179,7 @@ Uses:
           <div class="bg-white p-5 rounded-xl max-w-lg w-full">
             {/* Auth */}
             {modal === 'auth' && (
-              <Auth login={login} close={() => setModal(null)} />
+             <Auth login={login} signup={signup} close={() => setModal(null)} />
             )}
 
             {/* Post */}
@@ -265,6 +270,7 @@ function Auth({ login, signup, close }) {
 
   return (
     <div>
+      {/* Tabs for switching */}
       <div class="mb-2 flex gap-2">
         <button
           class={`px-3 py-1 rounded ${mode === 'login' ? 'bg-cyan-600 text-white' : 'border'}`}
@@ -276,19 +282,20 @@ function Auth({ login, signup, close }) {
         >Sign Up</button>
       </div>
       <h2 class="text-lg font-bold mb-2">{mode === 'login' ? 'Login' : 'Sign Up'}</h2>
-      <input class="w-full p-2 border rounded mb-2" placeholder="Username" onChange={e => setU(e.target.value)} />
-      <input class="w-full p-2 border rounded mb-2" type="password" placeholder="Password" onChange={e => setP(e.target.value)} />
+      <input class="w-full p-2 border rounded mb-2" placeholder="Username" value={u} onChange={e => setU(e.target.value)} />
+      <input class="w-full p-2 border rounded mb-2" type="password" placeholder="Password" value={p} onChange={e => setP(e.target.value)} />
       <button
         class="bg-cyan-600 text-white px-4 py-2 rounded"
         onClick={() => mode === 'login' ? login(u, p) : signup(u, p)}
       >{mode === 'login' ? 'Login' : 'Create Account'}</button>
     </div>
   );
-} 
+}
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
+
 
 
