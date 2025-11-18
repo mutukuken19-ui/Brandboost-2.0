@@ -135,9 +135,10 @@
           <div className="p-4 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {filteredAds.map(a => (
               <div key={a.id} className="bg-white p-3 rounded-xl shadow cursor-pointer" onClick={() => setModal(a)}>
-                <div className="h-32 bg-gray-200 rounded mb-2 flex items-center justify-center text-gray-500 text-sm">
-                  {a.category}
-                </div>
+                {a.img
+                  ? <img className="h-32 w-full object-cover rounded mb-2" src={a.img} alt={a.title} />
+                  : <div className="h-32 bg-gray-200 rounded mb-2 flex items-center justify-center text-gray-500 text-sm">{a.category}</div>
+                }
                 <div className="font-semibold">{a.title}</div>
                 <div className="text-sm text-gray-500">{a.category} • {a.price}</div>
               </div>
@@ -193,13 +194,13 @@
 
     // Modal Component
     function Modal({ modal, setModal, user, login, signup, postAd, refreshAds }) {
-      const [form, setForm] = React.useState({ title: '', category: categories[0], price: '', desc: '' });
+      const [form, setForm] = React.useState({ title: '', category: categories[0], price: '', desc: '', img: '' });
       const isAdView = typeof modal === 'object';
 
       const submitAd = () => {
         if (!user) return alert('Login first');
         if (!form.title || !form.desc) return alert('Missing fields');
-        postAd({ ...form, id: uid(), author: user.username, created: Date.now(), img: '' });
+        postAd({ ...form, id: uid(), author: user.username, created: Date.now(), img: form.img || '' });
         setModal(null);
       };
 
@@ -215,12 +216,18 @@
             {modal === 'post' && (
               <div>
                 <h2 className="text-lg font-bold mb-2">Create Ad</h2>
-                <input className="w-full p-2 border rounded mb-2" placeholder="Title" onChange={e => setForm({ ...form, title: e.target.value })} />
-                <select className="w-full p-2 border rounded mb-2" onChange={e => setForm({ ...form, category: e.target.value })}>
+                <input className="w-full p-2 border rounded mb-2" placeholder="Title"
+                  onChange={e => setForm({ ...form, title: e.target.value })} />
+                <select className="w-full p-2 border rounded mb-2"
+                  onChange={e => setForm({ ...form, category: e.target.value })}>
                   {categories.map(c => <option key={c}>{c}</option>)}
                 </select>
-                <input className="w-full p-2 border rounded mb-2" placeholder="Price / Details" onChange={e => setForm({ ...form, price: e.target.value })} />
-                <textarea className="w-full p-2 border rounded mb-2" placeholder="Description" onChange={e => setForm({ ...form, desc: e.target.value })}></textarea>
+                <input className="w-full p-2 border rounded mb-2" placeholder="Price / Details"
+                  onChange={e => setForm({ ...form, price: e.target.value })} />
+                <input className="w-full p-2 border rounded mb-2" placeholder="Image URL"
+                  onChange={e => setForm({ ...form, img: e.target.value })} />
+                <textarea className="w-full p-2 border rounded mb-2" placeholder="Description"
+                  onChange={e => setForm({ ...form, desc: e.target.value })}></textarea>
                 <button className="bg-cyan-600 text-white px-4 py-2 rounded" onClick={submitAd}>Post</button>
                 <button className="ml-2 px-2 py-1 border rounded text-xs" onClick={() => setModal(null)}>Close</button>
               </div>
@@ -230,6 +237,9 @@
             {isAdView && (
               <div>
                 <h2 className="text-xl font-bold">{modal.title}</h2>
+                {modal.img && (
+                  <img src={modal.img} alt={modal.title} className="w-full h-48 object-cover rounded mb-2" />
+                )}
                 <div className="text-gray-500">{modal.category} • {modal.price}</div>
                 <p className="mt-2 text-sm">{modal.desc}</p>
                 <div className="mt-4 text-sm text-gray-500">Posted by <b>{modal.author}</b></div>
@@ -297,6 +307,5 @@
   </script>
 </body>
 </html>
-
 
 
