@@ -1,168 +1,155 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>BrandBoost — Firebase Version</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- React + Babel (dev only) -->
+  <title>BrandBoost — Advertise Your Business</title>
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- Firebase JS (modular CDN) -->
-  <script type="module" id="firebase-init">
-    // Import Firebase SDKs from CDN (modular version)
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
-    import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
-    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
-
-    window.FIREBASE_CONFIG = {
-      // TODO: replace with your Firebase config
-      apiKey: "YOUR_KEY_HERE",
-      authDomain: "YOUR_DOMAIN",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_BUCKET",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
-    };
-    window.app = initializeApp(window.FIREBASE_CONFIG);
-    window.db = getFirestore(app);
-    window.auth = getAuth(app);
-
-    // Export for inline scripts
-    window.FirebaseServices = {
-      db: window.db,
-      auth: window.auth,
-      collections: {
-        ads: () => collection(window.db, "ads"),
-      },
-      q: query,
-      orderBy,
-      onSnapshot,
-      addDoc,
-      updateDoc,
-      doc,
-      deleteDoc
-    };
-  </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #f8fafc; }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="text-gray-900">
   <div id="root"></div>
+
   <script type="text/babel">
+    /* Utility */
+    const DB = {
+      get: (k) => JSON.parse(localStorage.getItem(k) || 'null'),
+      set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+    };
 
-    // Wait for Firebase scripts to load
-    function useFirebase() {
-      const [ready, setReady] = React.useState(false);
-      React.useEffect(() => {
-        const interval = setInterval(() => {
-          if (window.FirebaseServices) setReady(true);
-        }, 100);
-        return () => clearInterval(interval);
-      }, []);
-      return ready ? window.FirebaseServices : null;
+    const uid = () => 'id-' + Math.random().toString(36).slice(2, 9);
+    const categories = [
+      'Services', 'Food & Drink', 'Retail', 'Health',
+      'Education', 'Automotive', 'Home', 'Events'
+    ];
+
+    // Seed sample ads
+    if (!DB.get('ads')) {
+      DB.set('ads', [
+        { id: uid(), title: 'Mama Kafe — Local cafe', category: 'Food & Drink', price: 'Free delivery', desc: 'Cozy cafe near campus', img: '', author: 'system', created: Date.now() },
+        { id: uid(), title: 'QuickFix Auto Repairs', category: 'Automotive', price: 'KES 1500+', desc: 'Brake, diagnostics, towing', img: '', author: 'system', created: Date.now() - 86400000 },
+      ]);
     }
+    if (!DB.get('users')) DB.set('users', []);
 
+    /* Main App */
     function App() {
-      const firebase = useFirebase();
-      const [ads, setAds] = React.useState([]);
-      const [user, setUser] = React.useState(null);
-      const [modal, setModal] = React.useState(""); // "login", "post", ad for details, etc.
-      const [q, setQ] = React.useState("");
-      const [cat, setCat] = React.useState("");
-      const categories = [ "Services","Food & Drink","Retail","Health", "Education","Automotive","Home","Events" ];
+      const [q, setQ] = React.useState('');
+      const [ads, setAds] = React.useState(DB.get('ads') || []);
+      const [filterCat, setFilterCat] = React.useState('');
+      const [modal, setModal] = React.useState(null);
+      const [user, setUser] = React.useState(() => JSON.parse(sessionStorage.getItem('bb_user') || 'null'));
+      const [editAd, setEditAd] = React.useState(null);
 
-      // Auth state sync
-      React.useEffect(() => {
-        if (!firebase) return;
-        const unsub = firebase.auth.onAuthStateChanged(setUser);
-        return () => unsub();
-      }, [firebase]);
+      const refreshAds = () => setAds(DB.get('ads') || []);
 
-      // Listen for ads in Firestore
-      React.useEffect(() => {
-        if (!firebase) return;
-        const qAds = firebase.q(firebase.collections.ads(), firebase.orderBy("created", "desc"));
-        const unsub = firebase.onSnapshot(qAds, snap => {
-          setAds( snap.docs.map(doc => ({id:doc.id, ...doc.data()})) );
-        });
-        return () => unsub();
-      }, [firebase]);
-
-      // CRUD helpers
-      const postAd = async (ad) => {
-        if (!user) { window.alert("Login first"); return; }
-        await firebase.addDoc(firebase.collections.ads(), {
-          ...ad,
-          created: Date.now(),
-          author: user.email,
-        });
-      };
-      const updateAd = async (ad) => {
-        await firebase.updateDoc(firebase.doc(window.db, "ads", ad.id), ad);
-      };
-      const deleteAd = async (adId) => {
-        await firebase.deleteDoc(firebase.doc(window.db, "ads", adId));
-      };
-
-      // Auth helpers
-      const login = async (email, password) => {
-        await firebase.auth.signInWithEmailAndPassword(email, password)
-        .catch(e => window.alert(e.message));
-        setModal("");
-      };
-      const signup = async (email, password) => {
-        await firebase.auth.createUserWithEmailAndPassword(email, password)
-        .catch(e => window.alert(e.message));
-        setModal("");
-      };
-      const logout = async () => {
-        await firebase.auth.signOut();
-        setModal("");
-      };
-
-      // Search/filter
       const filteredAds = ads
-        .filter(a => !q || (a.title+a.desc).toLowerCase().includes(q.toLowerCase()))
-        .filter(a => !cat || a.category === cat);
+        .filter(a => (q ? (a.title + ' ' + a.desc).toLowerCase().includes(q.toLowerCase()) : true))
+        .filter(a => (filterCat ? a.category === filterCat : true))
+        .sort((a, b) => b.created - a.created);
 
-      if (!firebase) return <div className="p-8 text-lg">Loading Firebase...</div>;
+      const signup = (u, p) => {
+        let users = DB.get('users') || [];
+        if (users.find(x => x.username === u)) return alert('Username already taken');
+        const nu = { id: uid(), username: u, pwd: p, isAdmin: users.length === 0 };
+        users.push(nu); DB.set('users', users);
+        sessionStorage.setItem('bb_user', JSON.stringify(nu));
+        setUser(nu);
+        alert('Account created');
+      };
+
+      const login = (u, p) => {
+        let users = DB.get('users') || [];
+        const found = users.find(x => x.username === u);
+        if (found) {
+          if (found.pwd !== p) return alert('Wrong password');
+          sessionStorage.setItem('bb_user', JSON.stringify(found));
+          setUser(found); return;
+        }
+        const nu = { id: uid(), username: u, pwd: p, isAdmin: users.length === 0 };
+        users.push(nu); DB.set('users', users);
+        sessionStorage.setItem('bb_user', JSON.stringify(nu));
+        setUser(nu);
+        alert('Account created');
+      };
+
+      const postAd = (a) => {
+        const list = DB.get('ads') || [];
+        list.push(a); DB.set('ads', list);
+        refreshAds();
+      };
+
+      const startEditAd = (ad) => {
+        setEditAd(ad);
+        setModal('edit');
+      };
+
+      const updateAd = (updatedAd) => {
+        let list = DB.get('ads') || [];
+        list = list.map(a => a.id === updatedAd.id ? { ...a, ...updatedAd } : a);
+        DB.set('ads', list);
+        refreshAds();
+        setEditAd(null);
+        setModal(null);
+      };
+
       return (
         <div>
           {/* Header */}
-          <header className="bg-white shadow p-4 flex flex-col md:flex-row gap-3 md:items-center sticky top-0 z-10">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-cyan-600 text-white rounded-lg flex items-center justify-center font-bold">BB</div>
-              <span className="font-bold text-lg">BrandBoost</span>
+          <header className="bg-white shadow p-4 flex flex-col md:flex-row md:items-center gap-3 sticky top-0 z-10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-cyan-600 text-white rounded-lg flex items-center justify-center font-bold">BB</div>
+              <div>
+                <div className="font-bold text-lg">BrandBoost</div>
+                <div className="text-xs text-gray-500">Advertise Your Business</div>
+              </div>
             </div>
-            <div className="flex flex-1 max-w-lg mx-auto w-full">
+
+            <div className="flex flex-1 max-w-xl mx-auto w-full">
               <input
-                value={q} onChange={e=>setQ(e.target.value)}
+                value={q}
+                onChange={e => setQ(e.target.value)}
                 placeholder="Search businesses..."
-                className="flex-1 p-2 border rounded-l outline-none"
+                className="flex-1 p-2 border rounded-l-lg outline-none"
               />
-              <button className="bg-cyan-600 text-white px-4 rounded-r">Search</button>
+              <button className="bg-cyan-600 text-white px-4 rounded-r-lg">Search</button>
             </div>
+
             <div className="flex gap-2">
-              {user && <button onClick={logout} className="border px-3 py-2 rounded">{user.email} (Logout)</button>}
-              {!user && <button onClick={()=>setModal("login")} className="bg-cyan-600 text-white px-3 py-2 rounded">Login/Sign Up</button>}
-              <button onClick={()=>setModal("post")} className="border px-3 py-2 rounded">Post Ad</button>
+              <button className="px-3 py-2 border rounded" onClick={() => setModal('admin')}>Admin</button>
+              <button className="px-3 py-2 border rounded" onClick={() => setModal('post')}>Post Ad</button>
+              <button className="px-3 py-2 bg-cyan-600 text-white rounded" onClick={() => setModal('auth')}>
+                {user ? user.username : 'Login / Sign Up'}
+              </button>
             </div>
           </header>
+
           {/* Categories */}
-          <div className="p-4 flex flex-wrap gap-2">
-            {categories.map(c=>(
-              <button key={c}
-                className={`px-3 py-1 border rounded-full ${cat===c?"bg-cyan-600 text-white":"bg-white"}`}
-                onClick={()=>setCat(c)}>{c}
+          <div className="p-4 flex gap-2 flex-wrap">
+            {categories.map(c => (
+              <button
+                key={c}
+                className={`px-3 py-1 border rounded-full ${filterCat === c ? 'bg-cyan-600 text-white' : 'bg-white'}`}
+                onClick={() => setFilterCat(c)}
+              >
+                {c}
               </button>
             ))}
-            <button onClick={()=>setCat("")} className="px-3 py-1 border rounded-full">All</button>
+            <button
+              className="px-3 py-1 border rounded-full"
+              onClick={() => setFilterCat('')}
+            >All</button>
           </div>
+
           {/* Ads Grid */}
           <div className="p-4 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filteredAds.map(a=>(
-              <div key={a.id} className="bg-white p-3 rounded-xl shadow cursor-pointer"
-                  onClick={()=>setModal(a)}>
+            {filteredAds.map(a => (
+              <div key={a.id} className="bg-white p-3 rounded-xl shadow cursor-pointer" onClick={() => setModal(a)}>
                 {a.img
                   ? <img className="h-32 w-full object-cover rounded mb-2" src={a.img} alt={a.title} />
                   : <div className="h-32 bg-gray-200 rounded mb-2 flex items-center justify-center text-gray-500 text-sm">{a.category}</div>
@@ -172,96 +159,219 @@
               </div>
             ))}
           </div>
-          {/* Modals: render login, signup, post/edit, ad detail */}
-          {modal==="login" && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center" onClick={e=>e.target===e.currentTarget&&setModal("")}>
-              <div className="bg-white p-6 rounded max-w-sm w-full">
-                <h2 className="font-bold text-lg mb-2">Login / Sign Up</h2>
-                <AuthForm login={login} signup={signup} close={()=>setModal("")}/>
-              </div>
-            </div>
-          )}
-          {modal==="post" && user && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center" onClick={e=>e.target===e.currentTarget&&setModal("")}>
-              <div className="bg-white p-6 rounded max-w-sm w-full">
-                <h2 className="font-bold text-lg mb-2">Create Ad</h2>
-                <AdForm onSubmit={async (form) => {await postAd(form); setModal("");}} onCancel={()=>setModal("")} categories={categories} />
-              </div>
-            </div>
-          )}
-          {/* Ad details modal */}
-          {modal && typeof modal==="object" && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center" onClick={e=>e.target===e.currentTarget&&setModal("")}>
-              <div className="bg-white p-6 rounded max-w-sm w-full">
-                <h2 className="font-bold text-xl mb-2">{modal.title}</h2>
-                {modal.img && <img className="mb-2 w-full h-48 object-cover rounded" src={modal.img} />}
-                <div className="text-gray-500">{modal.category} • {modal.price}</div>
-                <div className="mt-2">{modal.desc}</div>
-                <div className="mt-3 text-sm text-gray-400">Author: {modal.author || "Unknown"}</div>
-                {user && user.email===modal.author && (
-                  <div className="flex gap-2 mt-3">
-                    <button className="border px-3 py-1 rounded text-xs" onClick={()=>setModal({edit:true, ...modal})}>Edit</button>
-                    <button className="border px-3 py-1 rounded text-xs text-red-600" onClick={()=>{deleteAd(modal.id); setModal("")}}>Delete</button>
-                  </div>
-                )}
-                <button className="border px-3 py-2 rounded mt-3" onClick={()=>setModal("")}>Close</button>
-              </div>
-            </div>
-          )}
-          {/* Edit form modal */}
-          {modal && typeof modal==="object" && modal.edit && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center" onClick={e=>e.target===e.currentTarget&&setModal("")}>
-              <div className="bg-white p-6 rounded max-w-sm w-full">
-                <h2 className="font-bold text-lg mb-2">Edit Ad</h2>
-                <AdForm initialData={modal} onSubmit={async (form) => {await updateAd({...modal, ...form}); setModal("");}} onCancel={()=>setModal("")} categories={categories} />
-              </div>
-            </div>
+
+          {/* Modals */}
+          {modal && (
+            <Modal
+              modal={modal}
+              setModal={setModal}
+              user={user}
+              login={login}
+              signup={signup}
+              postAd={postAd}
+              refreshAds={refreshAds}
+              editAd={editAd}
+              setEditAd={setEditAd}
+              updateAd={updateAd}
+              startEditAd={startEditAd}
+            />
           )}
         </div>
       );
     }
 
-    // Simple login/signup form
-    function AuthForm({login, signup, close}) {
-      const [email,setEmail] = React.useState("");
-      const [pw,setPw] = React.useState("");
-      const [mode,setMode] = React.useState("login");
+    // Auth Component
+    function Auth({ login, signup, close }) {
+      const [u, setU] = React.useState('');
+      const [p, setP] = React.useState('');
+      const [mode, setMode] = React.useState('login'); // 'login' or 'signup'
+
       return (
         <div>
+          {/* Tabs for switching */}
           <div className="mb-2 flex gap-2">
-            <button className={mode==="login"?"bg-cyan-600 text-white px-3 py-1 rounded":"border px-3 py-1 rounded"} onClick={()=>setMode("login")}>Login</button>
-            <button className={mode==="signup"?"bg-cyan-600 text-white px-3 py-1 rounded":"border px-3 py-1 rounded"} onClick={()=>setMode("signup")}>Sign Up</button>
+            <button
+              className={`px-3 py-1 rounded ${mode === 'login' ? 'bg-cyan-600 text-white' : 'border'}`}
+              onClick={() => setMode('login')}
+            >Login</button>
+            <button
+              className={`px-3 py-1 rounded ${mode === 'signup' ? 'bg-cyan-600 text-white' : 'border'}`}
+              onClick={() => setMode('signup')}
+            >Sign Up</button>
           </div>
-          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full p-2 border rounded mb-2" placeholder="Email" />
-          <input type="password" value={pw} onChange={e=>setPw(e.target.value)} className="w-full p-2 border rounded mb-2" placeholder="Password" />
-          <button onClick={()=>mode==="login"?login(email,pw):signup(email,pw)} className="bg-cyan-600 text-white px-4 py-2 rounded w-full">{mode==="login"?"Login":"Create Account"}</button>
-          <button onClick={close} className="mt-2 px-2 py-1 border rounded text-xs">Close</button>
+          <h2 className="text-lg font-bold mb-2">{mode === 'login' ? 'Login' : 'Sign Up'}</h2>
+          <input className="w-full p-2 border rounded mb-2" placeholder="Username" value={u} onChange={e => setU(e.target.value)} />
+          <input className="w-full p-2 border rounded mb-2" type="password" placeholder="Password" value={p} onChange={e => setP(e.target.value)} />
+          <button
+            className="bg-cyan-600 text-white px-4 py-2 rounded"
+            onClick={() => mode === 'login' ? login(u, p) : signup(u, p)}
+          >{mode === 'login' ? 'Login' : 'Create Account'}</button>
+          <button className="ml-2 px-2 py-1 border rounded text-xs" onClick={close}>Close</button>
         </div>
       );
     }
 
-    // Ad create & edit form
-    function AdForm({initialData, onSubmit, onCancel, categories}) {
-      const blank = { title:"", category:categories[0], price:"", img:"", desc:""};
-      const [form, setForm] = React.useState(initialData || blank);
-      React.useEffect(()=>{ if(initialData) setForm(initialData); }, [initialData]);
+    // Ad Form (shared for post and edit)
+    function AdForm({ initialData, onSubmit, onCancel }) {
+      const [form, setForm] = React.useState(initialData);
+
+      React.useEffect(() => {
+        setForm(initialData);
+      }, [initialData]);
+
       return (
         <div>
-          <input className="w-full p-2 border rounded mb-2" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title:e.target.value})}/>
-          <select className="w-full p-2 border rounded mb-2" value={form.category} onChange={e=>setForm({...form, category:e.target.value})}>
-            {categories.map(c=><option key={c}>{c}</option>)}
+          <input className="w-full p-2 border rounded mb-2" placeholder="Title"
+            value={form.title}
+            onChange={e => setForm({ ...form, title: e.target.value })} />
+          <select className="w-full p-2 border rounded mb-2"
+            value={form.category}
+            onChange={e => setForm({ ...form, category: e.target.value })}>
+            {categories.map(c => <option key={c}>{c}</option>)}
           </select>
-          <input className="w-full p-2 border rounded mb-2" placeholder="Price / Details" value={form.price} onChange={e=>setForm({...form, price:e.target.value})}/>
-          <input className="w-full p-2 border rounded mb-2" placeholder="Image URL" value={form.img || ""} onChange={e=>setForm({...form, img:e.target.value})}/>
-          <textarea className="w-full p-2 border rounded mb-2" placeholder="Description" value={form.desc} onChange={e=>setForm({...form, desc:e.target.value})}/>
-          <button className="bg-cyan-600 text-white px-4 py-2 rounded mr-2" onClick={()=>onSubmit(form)}>{form.id ? "Update":"Post"}</button>
+          <input className="w-full p-2 border rounded mb-2" placeholder="Price / Details"
+            value={form.price}
+            onChange={e => setForm({ ...form, price: e.target.value })} />
+          <input className="w-full p-2 border rounded mb-2" placeholder="Image URL"
+            value={form.img || ""}
+            onChange={e => setForm({ ...form, img: e.target.value })} />
+          <textarea className="w-full p-2 border rounded mb-2" placeholder="Description"
+            value={form.desc}
+            onChange={e => setForm({ ...form, desc: e.target.value })}></textarea>
+          <button className="bg-cyan-600 text-white px-4 py-2 rounded mr-2" onClick={() => onSubmit(form)}>{initialData.id ? "Update" : "Post"}</button>
           <button className="px-3 py-2 border rounded text-xs" onClick={onCancel}>Cancel</button>
         </div>
       );
     }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    // Modal Component
+    function Modal({ modal, setModal, user, login, signup, postAd, refreshAds, editAd, setEditAd, updateAd, startEditAd }) {
+      // For new ad posting
+      const blankForm = { title: '', category: categories[0], price: '', desc: '', img: '' };
+      // For editing ad, preserve id, author, created
+      const getInitialEditData = () =>
+        editAd
+          ? { ...editAd }
+          : blankForm;
 
+      const submitAd = (form) => {
+        if (!user) return alert('Login first');
+        if (!form.title || !form.desc) return alert('Missing fields');
+        postAd({ ...form, id: uid(), author: user.username, created: Date.now(), img: form.img || "" });
+        setModal(null);
+      };
+
+      const submitEditAd = (form) => {
+        if (!user) return alert('Login first');
+        if (!form.title || !form.desc) return alert('Missing fields');
+        updateAd(form);
+      };
+
+      // Modal Overlay
+      return (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setModal(null)}>
+          <div className="bg-white p-5 rounded-xl max-w-lg w-full">
+            {/* Auth */}
+            {modal === 'auth' && (
+              <Auth login={login} signup={signup} close={() => setModal(null)} />
+            )}
+
+            {/* Post Ad */}
+            {modal === 'post' && (
+              <div>
+                <h2 className="text-lg font-bold mb-2">Create Ad</h2>
+                <AdForm initialData={{ ...blankForm, author: user?.username || "", created: Date.now() }} onSubmit={submitAd} onCancel={() => setModal(null)} />
+              </div>
+            )}
+
+            {/* Edit Ad */}
+            {modal === 'edit' && (
+              <div>
+                <h2 className="text-lg font-bold mb-2">Edit Ad</h2>
+                <AdForm initialData={getInitialEditData()} onSubmit={submitEditAd} onCancel={() => { setEditAd(null); setModal(null); }} />
+              </div>
+            )}
+
+            {/* View Ad */}
+            {typeof modal === 'object' && modal !== null && !modal.type && (
+              <div>
+                <h2 className="text-xl font-bold">{modal.title}</h2>
+                {modal.img && (
+                  <img src={modal.img} alt={modal.title} className="w-full h-48 object-cover rounded mb-2" />
+                )}
+                <div className="text-gray-500">{modal.category} • {modal.price}</div>
+                <p className="mt-2 text-sm">{modal.desc}</p>
+                <div className="mt-4 text-sm text-gray-500">Posted by <b>{modal.author}</b></div>
+                <div className="text-right mt-4 flex flex-row justify-end gap-2">
+                  {/* Show edit button if user is owner or admin */}
+                  {(user?.username === modal.author || user?.isAdmin) && (
+                    <button
+                      className="px-3 py-2 border rounded"
+                      onClick={() => { setEditAd(modal); setModal('edit'); }}
+                    >Edit</button>
+                  )}
+                  <button className="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
+                </div>
+              </div>
+            )}
+
+            {/* Admin */}
+            {modal === 'admin' && user?.isAdmin && (
+              <div>
+                <h2 className="text-lg font-bold mb-3">Admin Panel</h2>
+                <p className="mb-2 font-semibold">All Ads:</p>
+                {(DB.get('ads') || []).map(ad => (
+                  <div key={ad.id} className="mb-1 bg-gray-100 p-2 rounded flex justify-between items-center">
+                    <span>{ad.title} ({ad.author})</span>
+                    <button
+                      className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded"
+                      onClick={() => {
+                        const ads = (DB.get('ads') || []).filter(a => a.id !== ad.id);
+                        DB.set('ads', ads);
+                        refreshAds();
+                        setModal('admin');
+                      }}
+                    >Delete</button>
+                  </div>
+                ))}
+
+                <p className="mt-4 mb-2 font-semibold">All Users:</p>
+                {(DB.get('users') || []).map(u => (
+                  <div key={u.id} className="mb-1 bg-gray-100 p-2 rounded flex justify-between items-center">
+                    <span>{u.username} {u.isAdmin && <b>(admin)</b>}</span>
+                    {!u.isAdmin && (
+                      <button
+                        className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded"
+                        onClick={() => {
+                          const users = (DB.get('users') || []).filter(us => us.id !== u.id);
+                          DB.set('users', users);
+                          setModal('admin');
+                        }}
+                      >Delete</button>
+                    )}
+                  </div>
+                ))}
+                <div className="text-right mt-3">
+                  <button className="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
+                </div>
+              </div>
+            )}
+
+            {modal === 'admin' && !user?.isAdmin && (
+              <div>
+                <h2 className="text-lg font-bold mb-2">Admin Access</h2>
+                <p className="mb-3">You must be an admin to access this section.</p>
+                <button className="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
+
+
