@@ -44,6 +44,7 @@
       const [filterCat, setFilterCat] = React.useState('');
       const [modal, setModal] = React.useState(null);
       const [user, setUser] = React.useState(() => JSON.parse(sessionStorage.getItem('bb_user') || 'null'));
+      const [editAd, setEditAd] = React.useState(null);
 
       const refreshAds = () => setAds(DB.get('ads') || []);
 
@@ -81,6 +82,20 @@
         const list = DB.get('ads') || [];
         list.push(a); DB.set('ads', list);
         refreshAds();
+      };
+
+      const startEditAd = (ad) => {
+        setEditAd(ad);
+        setModal('edit');
+      };
+
+      const updateAd = (updatedAd) => {
+        let list = DB.get('ads') || [];
+        list = list.map(a => a.id === updatedAd.id ? { ...a, ...updatedAd } : a);
+        DB.set('ads', list);
+        refreshAds();
+        setEditAd(null);
+        setModal(null);
       };
 
       return (
@@ -155,6 +170,10 @@
               signup={signup}
               postAd={postAd}
               refreshAds={refreshAds}
+              editAd={editAd}
+              setEditAd={setEditAd}
+              updateAd={updateAd}
+              startEditAd={startEditAd}
             />
           )}
         </div>
@@ -192,16 +211,60 @@
       );
     }
 
-    // Modal Component
-    function Modal({ modal, setModal, user, login, signup, postAd, refreshAds }) {
-      const [form, setForm] = React.useState({ title: '', category: categories[0], price: '', desc: '', img: '' });
-      const isAdView = typeof modal === 'object';
+    // Ad Form (shared for post and edit)
+    function AdForm({ initialData, onSubmit, onCancel }) {
+      const [form, setForm] = React.useState(initialData);
 
-      const submitAd = () => {
+      React.useEffect(() => {
+        setForm(initialData);
+      }, [initialData]);
+
+      return (
+        <div>
+          <input className="w-full p-2 border rounded mb-2" placeholder="Title"
+            value={form.title}
+            onChange={e => setForm({ ...form, title: e.target.value })} />
+          <select className="w-full p-2 border rounded mb-2"
+            value={form.category}
+            onChange={e => setForm({ ...form, category: e.target.value })}>
+            {categories.map(c => <option key={c}>{c}</option>)}
+          </select>
+          <input className="w-full p-2 border rounded mb-2" placeholder="Price / Details"
+            value={form.price}
+            onChange={e => setForm({ ...form, price: e.target.value })} />
+          <input className="w-full p-2 border rounded mb-2" placeholder="Image URL"
+            value={form.img || ""}
+            onChange={e => setForm({ ...form, img: e.target.value })} />
+          <textarea className="w-full p-2 border rounded mb-2" placeholder="Description"
+            value={form.desc}
+            onChange={e => setForm({ ...form, desc: e.target.value })}></textarea>
+          <button className="bg-cyan-600 text-white px-4 py-2 rounded mr-2" onClick={() => onSubmit(form)}>{initialData.id ? "Update" : "Post"}</button>
+          <button className="px-3 py-2 border rounded text-xs" onClick={onCancel}>Cancel</button>
+        </div>
+      );
+    }
+
+    // Modal Component
+    function Modal({ modal, setModal, user, login, signup, postAd, refreshAds, editAd, setEditAd, updateAd, startEditAd }) {
+      // For new ad posting
+      const blankForm = { title: '', category: categories[0], price: '', desc: '', img: '' };
+      // For editing ad, preserve id, author, created
+      const getInitialEditData = () =>
+        editAd
+          ? { ...editAd }
+          : blankForm;
+
+      const submitAd = (form) => {
         if (!user) return alert('Login first');
         if (!form.title || !form.desc) return alert('Missing fields');
-        postAd({ ...form, id: uid(), author: user.username, created: Date.now(), img: form.img || '' });
+        postAd({ ...form, id: uid(), author: user.username, created: Date.now(), img: form.img || "" });
         setModal(null);
+      };
+
+      const submitEditAd = (form) => {
+        if (!user) return alert('Login first');
+        if (!form.title || !form.desc) return alert('Missing fields');
+        updateAd(form);
       };
 
       // Modal Overlay
@@ -212,29 +275,25 @@
             {modal === 'auth' && (
               <Auth login={login} signup={signup} close={() => setModal(null)} />
             )}
+
             {/* Post Ad */}
             {modal === 'post' && (
               <div>
                 <h2 className="text-lg font-bold mb-2">Create Ad</h2>
-                <input className="w-full p-2 border rounded mb-2" placeholder="Title"
-                  onChange={e => setForm({ ...form, title: e.target.value })} />
-                <select className="w-full p-2 border rounded mb-2"
-                  onChange={e => setForm({ ...form, category: e.target.value })}>
-                  {categories.map(c => <option key={c}>{c}</option>)}
-                </select>
-                <input className="w-full p-2 border rounded mb-2" placeholder="Price / Details"
-                  onChange={e => setForm({ ...form, price: e.target.value })} />
-                <input className="w-full p-2 border rounded mb-2" placeholder="Image URL"
-                  onChange={e => setForm({ ...form, img: e.target.value })} />
-                <textarea className="w-full p-2 border rounded mb-2" placeholder="Description"
-                  onChange={e => setForm({ ...form, desc: e.target.value })}></textarea>
-                <button className="bg-cyan-600 text-white px-4 py-2 rounded" onClick={submitAd}>Post</button>
-                <button className="ml-2 px-2 py-1 border rounded text-xs" onClick={() => setModal(null)}>Close</button>
+                <AdForm initialData={{ ...blankForm, author: user?.username || "", created: Date.now() }} onSubmit={submitAd} onCancel={() => setModal(null)} />
+              </div>
+            )}
+
+            {/* Edit Ad */}
+            {modal === 'edit' && (
+              <div>
+                <h2 className="text-lg font-bold mb-2">Edit Ad</h2>
+                <AdForm initialData={getInitialEditData()} onSubmit={submitEditAd} onCancel={() => { setEditAd(null); setModal(null); }} />
               </div>
             )}
 
             {/* View Ad */}
-            {isAdView && (
+            {typeof modal === 'object' && modal !== null && !modal.type && (
               <div>
                 <h2 className="text-xl font-bold">{modal.title}</h2>
                 {modal.img && (
@@ -243,7 +302,14 @@
                 <div className="text-gray-500">{modal.category} • {modal.price}</div>
                 <p className="mt-2 text-sm">{modal.desc}</p>
                 <div className="mt-4 text-sm text-gray-500">Posted by <b>{modal.author}</b></div>
-                <div className="text-right mt-4">
+                <div className="text-right mt-4 flex flex-row justify-end gap-2">
+                  {/* Show edit button if user is owner or admin */}
+                  {(user?.username === modal.author || user?.isAdmin) && (
+                    <button
+                      className="px-3 py-2 border rounded"
+                      onClick={() => { setEditAd(modal); setModal('edit'); }}
+                    >Edit</button>
+                  )}
                   <button className="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
                 </div>
               </div>
@@ -307,5 +373,4 @@
   </script>
 </body>
 </html>
-
 
