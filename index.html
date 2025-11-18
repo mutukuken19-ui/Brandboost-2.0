@@ -63,6 +63,16 @@ Uses:
         .filter(a => (filterCat ? a.category === filterCat : true))
         .sort((a, b) => b.created - a.created);
 
+      const signup = (u, p) => {
+  let users = DB.get('users') || [];
+  if (users.find(x => x.username === u)) return alert('Username already taken');
+  const nu = { id: uid(), username: u, pwd: p, isAdmin: users.length === 0 };
+  users.push(nu); DB.set('users', users);
+  sessionStorage.setItem('bb_user', JSON.stringify(nu));
+  setUser(nu);
+  alert('Account created');
+};
+
       const login = (u, p) => {
         let users = DB.get('users') || [];
         const found = users.find(x => x.username === u);
@@ -145,12 +155,8 @@ Uses:
             ))}
           </div>
 
-          {/* Modals */}
-          {modal && <Modal modal={modal} setModal={setModal} user={user} login={login} postAd={postAd} refreshAds={refreshAds} />}
-        </div>
-      );
-    }
-
+      {modal && <Modal modal={modal} setModal={setModal} user={user} login={login} postAd={postAd} refreshAds={refreshAds} />}
+          
     /* Modal Component */
     function Modal({ modal, setModal, user, login, postAd, refreshAds }) {
       const [form, setForm] = React.useState({ title: '', category: categories[0], price: '', desc: '' });
@@ -250,23 +256,39 @@ Uses:
     <button class="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
   </div>
 )}
-    /* Auth Form */
-    function Auth({ login, close }) {
-      const [u, setU] = React.useState('');
-      const [p, setP] = React.useState('');
+    
+ /* Auth Form */
+function Auth({ login, signup, close }) {
+  const [u, setU] = React.useState('');
+  const [p, setP] = React.useState('');
+  const [mode, setMode] = React.useState('login'); // 'login' or 'signup'
 
-      return (
-        <div>
-          <h2 class="text-lg font-bold mb-2">Login / Sign Up</h2>
-          <input class="w-full p-2 border rounded mb-2" placeholder="Username" onChange={e => setU(e.target.value)} />
-          <input class="w-full p-2 border rounded mb-2" type="password" placeholder="Password" onChange={e => setP(e.target.value)} />
-          <button class="bg-cyan-600 text-white px-4 py-2 rounded" onClick={() => login(u, p)}>Continue</button>
-        </div>
-      );
-    }
+  return (
+    <div>
+      <div class="mb-2 flex gap-2">
+        <button
+          class={`px-3 py-1 rounded ${mode === 'login' ? 'bg-cyan-600 text-white' : 'border'}`}
+          onClick={() => setMode('login')}
+        >Login</button>
+        <button
+          class={`px-3 py-1 rounded ${mode === 'signup' ? 'bg-cyan-600 text-white' : 'border'}`}
+          onClick={() => setMode('signup')}
+        >Sign Up</button>
+      </div>
+      <h2 class="text-lg font-bold mb-2">{mode === 'login' ? 'Login' : 'Sign Up'}</h2>
+      <input class="w-full p-2 border rounded mb-2" placeholder="Username" onChange={e => setU(e.target.value)} />
+      <input class="w-full p-2 border rounded mb-2" type="password" placeholder="Password" onChange={e => setP(e.target.value)} />
+      <button
+        class="bg-cyan-600 text-white px-4 py-2 rounded"
+        onClick={() => mode === 'login' ? login(u, p) : signup(u, p)}
+      >{mode === 'login' ? 'Login' : 'Create Account'}</button>
+    </div>
+  );
+} 
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
+
 
