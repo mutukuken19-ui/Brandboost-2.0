@@ -14,14 +14,12 @@
 </head>
 <body class="text-gray-900">
   <div id="root"></div>
-
   <script type="text/babel">
-    /* Utility */
+    // Simple localStorage "DB"
     const DB = {
       get: (k) => JSON.parse(localStorage.getItem(k) || 'null'),
       set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
     };
-
     const uid = () => 'id-' + Math.random().toString(36).slice(2, 9);
     const categories = [
       'Services', 'Food & Drink', 'Retail', 'Health',
@@ -37,7 +35,6 @@
     }
     if (!DB.get('users')) DB.set('users', []);
 
-    /* Main App */
     function App() {
       const [q, setQ] = React.useState('');
       const [ads, setAds] = React.useState(DB.get('ads') || []);
@@ -47,7 +44,6 @@
       const [editAd, setEditAd] = React.useState(null);
 
       const refreshAds = () => setAds(DB.get('ads') || []);
-
       const filteredAds = ads
         .filter(a => (q ? (a.title + ' ' + a.desc).toLowerCase().includes(q.toLowerCase()) : true))
         .filter(a => (filterCat ? a.category === filterCat : true))
@@ -62,7 +58,6 @@
         setUser(nu);
         alert('Account created');
       };
-
       const login = (u, p) => {
         let users = DB.get('users') || [];
         const found = users.find(x => x.username === u);
@@ -83,12 +78,6 @@
         list.push(a); DB.set('ads', list);
         refreshAds();
       };
-
-      const startEditAd = (ad) => {
-        setEditAd(ad);
-        setModal('edit');
-      };
-
       const updateAd = (updatedAd) => {
         let list = DB.get('ads') || [];
         list = list.map(a => a.id === updatedAd.id ? { ...a, ...updatedAd } : a);
@@ -96,6 +85,11 @@
         refreshAds();
         setEditAd(null);
         setModal(null);
+      };
+      const deleteAd = (id) => {
+        const ads = (DB.get('ads') || []).filter(a => a.id !== id);
+        DB.set('ads', ads);
+        refreshAds();
       };
 
       return (
@@ -109,7 +103,6 @@
                 <div className="text-xs text-gray-500">Advertise Your Business</div>
               </div>
             </div>
-
             <div className="flex flex-1 max-w-xl mx-auto w-full">
               <input
                 value={q}
@@ -119,16 +112,17 @@
               />
               <button className="bg-cyan-600 text-white px-4 rounded-r-lg">Search</button>
             </div>
-
             <div className="flex gap-2">
               <button className="px-3 py-2 border rounded" onClick={() => setModal('admin')}>Admin</button>
               <button className="px-3 py-2 border rounded" onClick={() => setModal('post')}>Post Ad</button>
               <button className="px-3 py-2 bg-cyan-600 text-white rounded" onClick={() => setModal('auth')}>
                 {user ? user.username : 'Login / Sign Up'}
               </button>
+              {user && (
+                <button className="px-3 py-2 border rounded" onClick={() => { sessionStorage.removeItem('bb_user'); setUser(null); }}>Logout</button>
+              )}
             </div>
           </header>
-
           {/* Categories */}
           <div className="p-4 flex gap-2 flex-wrap">
             {categories.map(c => (
@@ -145,7 +139,6 @@
               onClick={() => setFilterCat('')}
             >All</button>
           </div>
-
           {/* Ads Grid */}
           <div className="p-4 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {filteredAds.map(a => (
@@ -159,7 +152,6 @@
               </div>
             ))}
           </div>
-
           {/* Modals */}
           {modal && (
             <Modal
@@ -169,26 +161,24 @@
               login={login}
               signup={signup}
               postAd={postAd}
+              deleteAd={deleteAd}
               refreshAds={refreshAds}
               editAd={editAd}
               setEditAd={setEditAd}
               updateAd={updateAd}
-              startEditAd={startEditAd}
+              categories={categories}
             />
           )}
         </div>
       );
     }
 
-    // Auth Component
     function Auth({ login, signup, close }) {
       const [u, setU] = React.useState('');
       const [p, setP] = React.useState('');
-      const [mode, setMode] = React.useState('login'); // 'login' or 'signup'
-
+      const [mode, setMode] = React.useState('login');
       return (
         <div>
-          {/* Tabs for switching */}
           <div className="mb-2 flex gap-2">
             <button
               className={`px-3 py-1 rounded ${mode === 'login' ? 'bg-cyan-600 text-white' : 'border'}`}
@@ -211,14 +201,9 @@
       );
     }
 
-    // Ad Form (shared for post and edit)
-    function AdForm({ initialData, onSubmit, onCancel }) {
+    function AdForm({ initialData, onSubmit, onCancel, categories }) {
       const [form, setForm] = React.useState(initialData);
-
-      React.useEffect(() => {
-        setForm(initialData);
-      }, [initialData]);
-
+      React.useEffect(() => { setForm(initialData); }, [initialData]);
       return (
         <div>
           <input className="w-full p-2 border rounded mb-2" placeholder="Title"
@@ -244,11 +229,8 @@
       );
     }
 
-    // Modal Component
-    function Modal({ modal, setModal, user, login, signup, postAd, refreshAds, editAd, setEditAd, updateAd, startEditAd }) {
-      // For new ad posting
+    function Modal({ modal, setModal, user, login, signup, postAd, deleteAd, refreshAds, editAd, setEditAd, updateAd, categories }) {
       const blankForm = { title: '', category: categories[0], price: '', desc: '', img: '' };
-      // For editing ad, preserve id, author, created
       const getInitialEditData = () =>
         editAd
           ? { ...editAd }
@@ -260,39 +242,30 @@
         postAd({ ...form, id: uid(), author: user.username, created: Date.now(), img: form.img || "" });
         setModal(null);
       };
-
       const submitEditAd = (form) => {
         if (!user) return alert('Login first');
         if (!form.title || !form.desc) return alert('Missing fields');
         updateAd(form);
       };
 
-      // Modal Overlay
       return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setModal(null)}>
           <div className="bg-white p-5 rounded-xl max-w-lg w-full">
-            {/* Auth */}
             {modal === 'auth' && (
               <Auth login={login} signup={signup} close={() => setModal(null)} />
             )}
-
-            {/* Post Ad */}
             {modal === 'post' && (
               <div>
                 <h2 className="text-lg font-bold mb-2">Create Ad</h2>
-                <AdForm initialData={{ ...blankForm, author: user?.username || "", created: Date.now() }} onSubmit={submitAd} onCancel={() => setModal(null)} />
+                <AdForm initialData={{ ...blankForm, author: user?.username || "", created: Date.now() }} onSubmit={submitAd} onCancel={() => setModal(null)} categories={categories} />
               </div>
             )}
-
-            {/* Edit Ad */}
             {modal === 'edit' && (
               <div>
                 <h2 className="text-lg font-bold mb-2">Edit Ad</h2>
-                <AdForm initialData={getInitialEditData()} onSubmit={submitEditAd} onCancel={() => { setEditAd(null); setModal(null); }} />
+                <AdForm initialData={getInitialEditData()} onSubmit={submitEditAd} onCancel={() => { setEditAd(null); setModal(null); }} categories={categories} />
               </div>
             )}
-
-            {/* View Ad */}
             {typeof modal === 'object' && modal !== null && !modal.type && (
               <div>
                 <h2 className="text-xl font-bold">{modal.title}</h2>
@@ -303,19 +276,22 @@
                 <p className="mt-2 text-sm">{modal.desc}</p>
                 <div className="mt-4 text-sm text-gray-500">Posted by <b>{modal.author}</b></div>
                 <div className="text-right mt-4 flex flex-row justify-end gap-2">
-                  {/* Show edit button if user is owner or admin */}
                   {(user?.username === modal.author || user?.isAdmin) && (
                     <button
                       className="px-3 py-2 border rounded"
                       onClick={() => { setEditAd(modal); setModal('edit'); }}
                     >Edit</button>
                   )}
+                  {(user?.username === modal.author || user?.isAdmin) && (
+                    <button
+                      className="px-3 py-2 border rounded text-red-600"
+                      onClick={() => { deleteAd(modal.id); setModal(null); }}
+                    >Delete</button>
+                  )}
                   <button className="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
                 </div>
               </div>
             )}
-
-            {/* Admin */}
             {modal === 'admin' && user?.isAdmin && (
               <div>
                 <h2 className="text-lg font-bold mb-3">Admin Panel</h2>
@@ -326,15 +302,12 @@
                     <button
                       className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded"
                       onClick={() => {
-                        const ads = (DB.get('ads') || []).filter(a => a.id !== ad.id);
-                        DB.set('ads', ads);
-                        refreshAds();
+                        deleteAd(ad.id);
                         setModal('admin');
                       }}
                     >Delete</button>
                   </div>
                 ))}
-
                 <p className="mt-4 mb-2 font-semibold">All Users:</p>
                 {(DB.get('users') || []).map(u => (
                   <div key={u.id} className="mb-1 bg-gray-100 p-2 rounded flex justify-between items-center">
@@ -356,7 +329,6 @@
                 </div>
               </div>
             )}
-
             {modal === 'admin' && !user?.isAdmin && (
               <div>
                 <h2 className="text-lg font-bold mb-2">Admin Access</h2>
@@ -368,10 +340,8 @@
         </div>
       );
     }
-
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
-
 
