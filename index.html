@@ -3,99 +3,148 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BrandBoost — Advertise Your Business</title>
+  <title>BrandBoost Cloud — Admin & Users (Supabase powered)</title>
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { background: #f8fafc; }
   </style>
 </head>
 <body class="text-gray-900">
   <div id="root"></div>
-
   <script type="text/babel">
-    /* Utility */
-    const DB = {
-      get: (k) => JSON.parse(localStorage.getItem(k) || 'null'),
-      set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
-    };
+    // ============== SUPABASE SETUP ==============
+    const supabaseUrl = "https://clqghgxwazzyspzmfcsv.supabase.co"; // <-- YOUR SUPABASE PROJECT
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNscWdoZ3h3YXp6eXNwem1mY3N2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MDI0ODUsImV4cCI6MjA3OTk3ODQ4NX0.Gdpm2nI-tsWS98NEzR-yPZ_AvLwOb4Qk31kU9q5jg24";
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-    const uid = () => 'id-' + Math.random().toString(36).slice(2, 9);
+    // ============== CONSTANTS ==============
     const categories = [
       'Services', 'Food & Drink', 'Retail', 'Health',
       'Education', 'Automotive', 'Home', 'Events'
     ];
+    const blankAd = { title: '', category: categories[0], price: '', desc: '', img: '' };
 
-    // Seed sample ads
-    if (!DB.get('ads')) {
-      DB.set('ads', [
-        { id: uid(), title: 'Mama Kafe — Local cafe', category: 'Food & Drink', price: 'Free delivery', desc: 'Cozy cafe near campus', img: '', author: 'system', created: Date.now() },
-        { id: uid(), title: 'QuickFix Auto Repairs', category: 'Automotive', price: 'KES 1500+', desc: 'Brake, diagnostics, towing', img: '', author: 'system', created: Date.now() - 86400000 },
-      ]);
-    }
-    if (!DB.get('users')) DB.set('users', []);
-
-    /* Main App */
+    // ============== MAIN APP ==============
     function App() {
+      // --------- STATE ---------
       const [q, setQ] = React.useState('');
-      const [ads, setAds] = React.useState(DB.get('ads') || []);
+      const [ads, setAds] = React.useState([]);
+      const [users, setUsers] = React.useState([]);
       const [filterCat, setFilterCat] = React.useState('');
       const [modal, setModal] = React.useState(null);
       const [user, setUser] = React.useState(() => JSON.parse(sessionStorage.getItem('bb_user') || 'null'));
       const [editAd, setEditAd] = React.useState(null);
+      const [loadingAds, setLoadingAds] = React.useState(false);
+      const [loadingUsers, setLoadingUsers] = React.useState(false);
 
-      const refreshAds = () => setAds(DB.get('ads') || []);
+      // --------- DATA LOAD ---------
+      const fetchAds = async () => {
+        setLoadingAds(true);
+        let { data, error } = await supabase.from('ads').select('*').order('created', { ascending: false });
+        if (error) alert("Error loading ads: " + error.message);
+        setAds(data || []);
+        setLoadingAds(false);
+      };
+      const fetchUsers = async () => {
+        setLoadingUsers(true);
+        let { data, error } = await supabase.from('users').select('*');
+        if (error) alert("Error loading users: " + error.message);
+        setUsers(data || []);
+        setLoadingUsers(false);
+      };
+      React.useEffect(() => { fetchAds(); fetchUsers(); }, []);
 
+      // --------- FILTERS ---------
       const filteredAds = ads
         .filter(a => (q ? (a.title + ' ' + a.desc).toLowerCase().includes(q.toLowerCase()) : true))
-        .filter(a => (filterCat ? a.category === filterCat : true))
-        .sort((a, b) => b.created - a.created);
+        .filter(a => (filterCat ? a.category === filterCat : true));
 
-      const signup = (u, p) => {
-        let users = DB.get('users') || [];
-        if (users.find(x => x.username === u)) return alert('Username already taken');
-        const nu = { id: uid(), username: u, pwd: p, isAdmin: users.length === 0 };
-        users.push(nu); DB.set('users', users);
-        sessionStorage.setItem('bb_user', JSON.stringify(nu));
-        setUser(nu);
-        alert('Account created');
+      // --------- AUTH ---------
+      // Hash passwords (for demo only, not real security!)
+      const hash = (str) => btoa(unescape(encodeURIComponent(str)));
+
+      // -- SIGNUP
+      const signup = async (username, pwd) => {
+        if (!username || !pwd) return alert("Fill all fields");
+        let { data: existing } = await supabase.from('users').select('*').eq('username', username).single();
+        if (existing) return alert("Username taken");
+        // First user = admin
+        let { data: allUsers } = await supabase.from('users').select('*');
+        const isAdmin = (allUsers?.length === 0);
+        let { error } = await supabase.from('users').insert([
+          { username, pwd: hash(pwd), is_admin: isAdmin }
+        ]);
+        if (error) return alert("Signup error: " + error.message);
+        // Auto-login
+        let { data } = await supabase.from('users').select('*').eq('username', username).single();
+        sessionStorage.setItem('bb_user', JSON.stringify(data));
+        setUser(data);
+        fetchUsers();
+        setModal(null);
       };
 
-      const login = (u, p) => {
-        let users = DB.get('users') || [];
-        const found = users.find(x => x.username === u);
-        if (found) {
-          if (found.pwd !== p) return alert('Wrong password');
-          sessionStorage.setItem('bb_user', JSON.stringify(found));
-          setUser(found); return;
-        }
-        const nu = { id: uid(), username: u, pwd: p, isAdmin: users.length === 0 };
-        users.push(nu); DB.set('users', users);
-        sessionStorage.setItem('bb_user', JSON.stringify(nu));
-        setUser(nu);
-        alert('Account created');
+      // -- LOGIN
+      const login = async (username, pwd) => {
+        if (!username || !pwd) return alert("Fill all fields");
+        let { data, error } = await supabase.from('users').select('*').eq('username', username).single();
+        if (!data) return alert("No such user");
+        if (data.pwd !== hash(pwd)) return alert("Wrong password");
+        sessionStorage.setItem('bb_user', JSON.stringify(data));
+        setUser(data);
+        setModal(null);
       };
 
-      const postAd = (a) => {
-        const list = DB.get('ads') || [];
-        list.push(a); DB.set('ads', list);
-        refreshAds();
+      // -- LOGOUT
+      const logout = () => {
+        sessionStorage.removeItem('bb_user');
+        setUser(null);
+        setModal(null);
       };
 
-      const startEditAd = (ad) => {
-        setEditAd(ad);
-        setModal('edit');
+      // --------- AD CRUD ---------
+      const postAd = async (a) => {
+        if (!user) return alert("Login first!");
+        if (!a.title || !a.desc) return alert("Missing fields!");
+        let { error } = await supabase.from('ads').insert([
+          {
+            ...a,
+            author: user.username,
+            created: Date.now(),
+          }
+        ]);
+        if (error) alert("Posting ad failed: " + error.message);
+        fetchAds();
+        setModal(null);
       };
 
-      const updateAd = (updatedAd) => {
-        let list = DB.get('ads') || [];
-        list = list.map(a => a.id === updatedAd.id ? { ...a, ...updatedAd } : a);
-        DB.set('ads', list);
-        refreshAds();
+      const updateAd = async (a) => {
+        if (!user) return alert("Login first!");
+        if (!a.title || !a.desc) return alert("Missing fields!");
+        let { error } = await supabase.from('ads').update(a).eq("id", a.id);
+        if (error) alert("Update error: " + error.message);
         setEditAd(null);
         setModal(null);
+        fetchAds();
+      };
+
+      const deleteAd = async (adId) => {
+        if (!(user?.is_admin)) return alert("Admins only");
+        let { error } = await supabase.from('ads').delete().eq("id", adId);
+        if (error) alert("Delete failed: " + error.message);
+        fetchAds();
+      };
+
+      // --------- USERS CRUD (Admin Only) ---------
+      const deleteUser = async (userId) => {
+        if (!(user?.is_admin)) return alert("Admins only");
+        let { error } = await supabase.from('users').delete().eq("id", userId);
+        if (error) alert("Delete failed: " + error.message);
+        fetchUsers();
       };
 
       return (
@@ -105,11 +154,10 @@
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-cyan-600 text-white rounded-lg flex items-center justify-center font-bold">BB</div>
               <div>
-                <div className="font-bold text-lg">BrandBoost</div>
+                <div className="font-bold text-lg">BrandBoost Cloud</div>
                 <div className="text-xs text-gray-500">Advertise Your Business</div>
               </div>
             </div>
-
             <div className="flex flex-1 max-w-xl mx-auto w-full">
               <input
                 value={q}
@@ -117,15 +165,14 @@
                 placeholder="Search businesses..."
                 className="flex-1 p-2 border rounded-l-lg outline-none"
               />
-              <button className="bg-cyan-600 text-white px-4 rounded-r-lg">Search</button>
             </div>
-
             <div className="flex gap-2">
-              <button className="px-3 py-2 border rounded" onClick={() => setModal('admin')}>Admin</button>
+              {user?.is_admin && <button className="px-3 py-2 border rounded" onClick={() => setModal('admin')}>Admin</button>}
               <button className="px-3 py-2 border rounded" onClick={() => setModal('post')}>Post Ad</button>
-              <button className="px-3 py-2 bg-cyan-600 text-white rounded" onClick={() => setModal('auth')}>
-                {user ? user.username : 'Login / Sign Up'}
-              </button>
+              {user
+                ? <button className="px-3 py-2 bg-cyan-700 text-white rounded" onClick={logout}>{user.username} (Logout)</button>
+                : <button className="px-3 py-2 bg-cyan-600 text-white rounded" onClick={() => setModal('auth')}>Login / Sign Up</button>
+              }
             </div>
           </header>
 
@@ -136,31 +183,30 @@
                 key={c}
                 className={`px-3 py-1 border rounded-full ${filterCat === c ? 'bg-cyan-600 text-white' : 'bg-white'}`}
                 onClick={() => setFilterCat(c)}
-              >
-                {c}
-              </button>
+              >{c}</button>
             ))}
-            <button
-              className="px-3 py-1 border rounded-full"
-              onClick={() => setFilterCat('')}
-            >All</button>
+            <button className="px-3 py-1 border rounded-full" onClick={() => setFilterCat('')}>All</button>
           </div>
 
           {/* Ads Grid */}
           <div className="p-4 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filteredAds.map(a => (
-              <div key={a.id} className="bg-white p-3 rounded-xl shadow cursor-pointer" onClick={() => setModal(a)}>
-                {a.img
-                  ? <img className="h-32 w-full object-cover rounded mb-2" src={a.img} alt={a.title} />
-                  : <div className="h-32 bg-gray-200 rounded mb-2 flex items-center justify-center text-gray-500 text-sm">{a.category}</div>
-                }
-                <div className="font-semibold">{a.title}</div>
-                <div className="text-sm text-gray-500">{a.category} • {a.price}</div>
-              </div>
-            ))}
+            {loadingAds ? (
+              <div className="col-span-full text-center text-gray-500">Loading...</div>
+            ) : (
+              filteredAds.map(a => (
+                <div key={a.id} className="bg-white p-3 rounded-xl shadow cursor-pointer" onClick={() => setModal(a)}>
+                  {a.img
+                    ? <img className="h-32 w-full object-cover rounded mb-2" src={a.img} alt={a.title} />
+                    : <div className="h-32 bg-gray-200 rounded mb-2 flex items-center justify-center text-gray-500 text-sm">{a.category}</div>
+                  }
+                  <div className="font-semibold">{a.title}</div>
+                  <div className="text-sm text-gray-500">{a.category} • {a.price}</div>
+                </div>
+              ))
+            )}
           </div>
 
-          {/* Modals */}
+          {/* MODALS */}
           {modal && (
             <Modal
               modal={modal}
@@ -169,35 +215,30 @@
               login={login}
               signup={signup}
               postAd={postAd}
-              refreshAds={refreshAds}
               editAd={editAd}
               setEditAd={setEditAd}
               updateAd={updateAd}
-              startEditAd={startEditAd}
+              deleteAd={deleteAd}
+              users={users}
+              loadingUsers={loadingUsers}
+              deleteUser={deleteUser}
+              categories={categories}
             />
           )}
         </div>
       );
     }
 
-    // Auth Component
+    // ============== AUTH MODAL ==============
     function Auth({ login, signup, close }) {
       const [u, setU] = React.useState('');
       const [p, setP] = React.useState('');
-      const [mode, setMode] = React.useState('login'); // 'login' or 'signup'
-
+      const [mode, setMode] = React.useState('login');
       return (
         <div>
-          {/* Tabs for switching */}
           <div className="mb-2 flex gap-2">
-            <button
-              className={`px-3 py-1 rounded ${mode === 'login' ? 'bg-cyan-600 text-white' : 'border'}`}
-              onClick={() => setMode('login')}
-            >Login</button>
-            <button
-              className={`px-3 py-1 rounded ${mode === 'signup' ? 'bg-cyan-600 text-white' : 'border'}`}
-              onClick={() => setMode('signup')}
-            >Sign Up</button>
+            <button className={`px-3 py-1 rounded ${mode === 'login' ? 'bg-cyan-600 text-white' : 'border'}`} onClick={() => setMode('login')}>Login</button>
+            <button className={`px-3 py-1 rounded ${mode === 'signup' ? 'bg-cyan-600 text-white' : 'border'}`} onClick={() => setMode('signup')}>Sign Up</button>
           </div>
           <h2 className="text-lg font-bold mb-2">{mode === 'login' ? 'Login' : 'Sign Up'}</h2>
           <input className="w-full p-2 border rounded mb-2" placeholder="Username" value={u} onChange={e => setU(e.target.value)} />
@@ -211,14 +252,10 @@
       );
     }
 
-    // Ad Form (shared for post and edit)
-    function AdForm({ initialData, onSubmit, onCancel }) {
+    // ============== AD FORM (Create/Edit) ==============
+    function AdForm({ initialData, onSubmit, onCancel, categories }) {
       const [form, setForm] = React.useState(initialData);
-
-      React.useEffect(() => {
-        setForm(initialData);
-      }, [initialData]);
-
+      React.useEffect(() => { setForm(initialData); }, [initialData]);
       return (
         <div>
           <input className="w-full p-2 border rounded mb-2" placeholder="Title"
@@ -244,131 +281,124 @@
       );
     }
 
-    // Modal Component
-    function Modal({ modal, setModal, user, login, signup, postAd, refreshAds, editAd, setEditAd, updateAd, startEditAd }) {
-      // For new ad posting
-      const blankForm = { title: '', category: categories[0], price: '', desc: '', img: '' };
-      // For editing ad, preserve id, author, created
-      const getInitialEditData = () =>
-        editAd
-          ? { ...editAd }
-          : blankForm;
-
-      const submitAd = (form) => {
-        if (!user) return alert('Login first');
-        if (!form.title || !form.desc) return alert('Missing fields');
-        postAd({ ...form, id: uid(), author: user.username, created: Date.now(), img: form.img || "" });
-        setModal(null);
-      };
-
-      const submitEditAd = (form) => {
-        if (!user) return alert('Login first');
-        if (!form.title || !form.desc) return alert('Missing fields');
-        updateAd(form);
-      };
-
-      // Modal Overlay
-      return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setModal(null)}>
-          <div className="bg-white p-5 rounded-xl max-w-lg w-full">
-            {/* Auth */}
-            {modal === 'auth' && (
-              <Auth login={login} signup={signup} close={() => setModal(null)} />
-            )}
-
-            {/* Post Ad */}
-            {modal === 'post' && (
-              <div>
-                <h2 className="text-lg font-bold mb-2">Create Ad</h2>
-                <AdForm initialData={{ ...blankForm, author: user?.username || "", created: Date.now() }} onSubmit={submitAd} onCancel={() => setModal(null)} />
-              </div>
-            )}
-
-            {/* Edit Ad */}
-            {modal === 'edit' && (
-              <div>
-                <h2 className="text-lg font-bold mb-2">Edit Ad</h2>
-                <AdForm initialData={getInitialEditData()} onSubmit={submitEditAd} onCancel={() => { setEditAd(null); setModal(null); }} />
-              </div>
-            )}
-
-            {/* View Ad */}
-            {typeof modal === 'object' && modal !== null && !modal.type && (
-              <div>
-                <h2 className="text-xl font-bold">{modal.title}</h2>
-                {modal.img && (
-                  <img src={modal.img} alt={modal.title} className="w-full h-48 object-cover rounded mb-2" />
+    // ============== MODALS ==============
+    function Modal({ modal, setModal, user, login, signup, postAd, editAd, setEditAd, updateAd, deleteAd, users, loadingUsers, deleteUser, categories }) {
+      // Auth Modal
+      if (modal === 'auth') {
+        return (
+          <ModalOverlay>
+            <Auth login={login} signup={signup} close={() => setModal(null)} />
+          </ModalOverlay>
+        );
+      }
+      // Post Ad
+      if (modal === 'post') {
+        return (
+          <ModalOverlay>
+            <div>
+              <h2 className="text-lg font-bold mb-2">Create Ad</h2>
+              <AdForm initialData={{ ...blankAd, author: user?.username || "", created: Date.now() }} onSubmit={postAd} onCancel={() => setModal(null)} categories={categories}/>
+            </div>
+          </ModalOverlay>
+        );
+      }
+      // Edit Ad
+      if (modal === 'edit') {
+        return (
+          <ModalOverlay>
+            <div>
+              <h2 className="text-lg font-bold mb-2">Edit Ad</h2>
+              <AdForm initialData={editAd} onSubmit={updateAd} onCancel={() => { setEditAd(null); setModal(null); }} categories={categories}/>
+            </div>
+          </ModalOverlay>
+        );
+      }
+      // View Ad
+      if (typeof modal === 'object' && modal !== null && modal.title) {
+        return (
+          <ModalOverlay>
+            <div>
+              <h2 className="text-xl font-bold">{modal.title}</h2>
+              {modal.img && (
+                <img src={modal.img} alt={modal.title} className="w-full h-48 object-cover rounded mb-2" />
+              )}
+              <div className="text-gray-500">{modal.category} • {modal.price}</div>
+              <p className="mt-2 text-sm">{modal.desc}</p>
+              <div className="mt-4 text-sm text-gray-500">Posted by <b>{modal.author}</b></div>
+              <div className="text-right mt-4 flex flex-row justify-end gap-2">
+                {(user?.username === modal.author || user?.is_admin) && (
+                  <button
+                    className="px-3 py-2 border rounded"
+                    onClick={() => { setEditAd(modal); setModal('edit'); }}
+                  >Edit</button>
                 )}
-                <div className="text-gray-500">{modal.category} • {modal.price}</div>
-                <p className="mt-2 text-sm">{modal.desc}</p>
-                <div className="mt-4 text-sm text-gray-500">Posted by <b>{modal.author}</b></div>
-                <div className="text-right mt-4 flex flex-row justify-end gap-2">
-                  {/* Show edit button if user is owner or admin */}
-                  {(user?.username === modal.author || user?.isAdmin) && (
-                    <button
-                      className="px-3 py-2 border rounded"
-                      onClick={() => { setEditAd(modal); setModal('edit'); }}
-                    >Edit</button>
-                  )}
-                  <button className="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
-                </div>
+                {user?.is_admin && (
+                  <button className="px-3 py-2 border rounded bg-red-200 text-red-900" onClick={() => { if (window.confirm("Delete this ad?")) { deleteAd(modal.id); setModal(null); } }}>Delete</button>
+                )}
+                <button className="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
               </div>
-            )}
-
-            {/* Admin */}
-            {modal === 'admin' && user?.isAdmin && (
-              <div>
-                <h2 className="text-lg font-bold mb-3">Admin Panel</h2>
-                <p className="mb-2 font-semibold">All Ads:</p>
-                {(DB.get('ads') || []).map(ad => (
-                  <div key={ad.id} className="mb-1 bg-gray-100 p-2 rounded flex justify-between items-center">
-                    <span>{ad.title} ({ad.author})</span>
-                    <button
-                      className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded"
-                      onClick={() => {
-                        const ads = (DB.get('ads') || []).filter(a => a.id !== ad.id);
-                        DB.set('ads', ads);
-                        refreshAds();
-                        setModal('admin');
-                      }}
-                    >Delete</button>
-                  </div>
-                ))}
-
-                <p className="mt-4 mb-2 font-semibold">All Users:</p>
-                {(DB.get('users') || []).map(u => (
-                  <div key={u.id} className="mb-1 bg-gray-100 p-2 rounded flex justify-between items-center">
-                    <span>{u.username} {u.isAdmin && <b>(admin)</b>}</span>
-                    {!u.isAdmin && (
-                      <button
-                        className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded"
-                        onClick={() => {
-                          const users = (DB.get('users') || []).filter(us => us.id !== u.id);
-                          DB.set('users', users);
-                          setModal('admin');
-                        }}
-                      >Delete</button>
-                    )}
-                  </div>
-                ))}
-                <div className="text-right mt-3">
-                  <button className="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
-                </div>
-              </div>
-            )}
-
-            {modal === 'admin' && !user?.isAdmin && (
+            </div>
+          </ModalOverlay>
+        );
+      }
+      // Admin
+      if (modal === 'admin') {
+        if (!user?.is_admin) {
+          return (
+            <ModalOverlay>
               <div>
                 <h2 className="text-lg font-bold mb-2">Admin Access</h2>
                 <p className="mb-3">You must be an admin to access this section.</p>
                 <button className="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
               </div>
-            )}
-          </div>
+            </ModalOverlay>
+          );
+        }
+        return (
+          <ModalOverlay>
+            <div>
+              <h2 className="text-lg font-bold mb-3">Admin Panel</h2>
+              <div className="mb-2 font-semibold">All Ads:</div>
+              {(ads || []).map(ad => (
+                <div key={ad.id} className="mb-1 bg-gray-100 p-2 rounded flex justify-between items-center">
+                  <span>{ad.title} ({ad.author})</span>
+                  <button
+                    className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded"
+                    onClick={() => { if (window.confirm("Delete this ad?")) { deleteAd(ad.id); } }}
+                  >Delete</button>
+                </div>
+              ))}
+              <div className="mt-4 mb-2 font-semibold">All Users:</div>
+              {loadingUsers ? <span>Loading users...</span> : (users || []).map(u => (
+                <div key={u.id} className="mb-1 bg-gray-100 p-2 rounded flex justify-between items-center">
+                  <span>{u.username} {u.is_admin && <b>(admin)</b>}</span>
+                  {!u.is_admin && (
+                    <button
+                      className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded"
+                      onClick={() => { if (window.confirm("Delete this user?")) { deleteUser(u.id); } }}
+                    >Delete</button>
+                  )}
+                </div>
+              ))}
+              <div className="text-right mt-3">
+                <button className="px-3 py-2 border rounded" onClick={() => setModal(null)}>Close</button>
+              </div>
+            </div>
+          </ModalOverlay>
+        );
+      }
+      return null;
+    }
+
+    function ModalOverlay({ children }) {
+      return (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={e => e.target === e.currentTarget && window.dispatchEvent(new Event('close'))}>
+          <div className="bg-white p-5 rounded-xl max-w-lg w-full">{children}</div>
         </div>
       );
     }
 
+    // ============== MOUNT APP ==============
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
