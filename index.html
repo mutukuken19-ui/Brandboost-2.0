@@ -19,7 +19,7 @@
   <script type="text/babel">
     // ============== SUPABASE SETUP ==============
     const supabaseUrl = "https://clqghgxwazzyspzmfcsv.supabase.co"; // <-- YOUR SUPABASE PROJECT
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNscWdoZ3h3YXp6eXNwem1mY3N2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MDI0ODUsImV4cCI6MjA3OTk3ODQ4NX0.Gdpm2nI-tsWS98NEzR-yPZ_AvLwOb4Qk31kU9q5jg24";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNscWdoZ3h3YXp6eXNwem1mY3N2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MDI0ODUsImV4cCI6MjA3OTk3ODQ4NX0.Gdpm2nI-ts[...]
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     // ============== CONSTANTS ==============
@@ -58,6 +58,13 @@
         setLoadingUsers(false);
       };
       React.useEffect(() => { fetchAds(); fetchUsers(); }, []);
+
+      // Listen for overlay 'close' events (ModalOverlay dispatches this)
+      React.useEffect(() => {
+        const onClose = () => setModal(null);
+        window.addEventListener('close', onClose);
+        return () => window.removeEventListener('close', onClose);
+      }, []);
 
       // --------- FILTERS ---------
       const filteredAds = ads
@@ -223,6 +230,7 @@
               loadingUsers={loadingUsers}
               deleteUser={deleteUser}
               categories={categories}
+              ads={ads}
             />
           )}
         </div>
@@ -282,7 +290,7 @@
     }
 
     // ============== MODALS ==============
-    function Modal({ modal, setModal, user, login, signup, postAd, editAd, setEditAd, updateAd, deleteAd, users, loadingUsers, deleteUser, categories }) {
+    function Modal({ modal, setModal, user, login, signup, postAd, editAd, setEditAd, updateAd, deleteAd, users, loadingUsers, deleteUser, categories, ads }) {
       // Auth Modal
       if (modal === 'auth') {
         return (
@@ -403,6 +411,5 @@
   </script>
 </body>
 </html>
-
 
 
