@@ -11,12 +11,10 @@
   <!-- Supabase client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    /* Background image with a light white overlay so the UI remains readable.
-       Replace the URL below with your image or a Supabase public URL. */
+    /* Background image without white overlay so the image shows through. */
     body {
-      background: linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.85)),
-                  url('https://images.unsplash.com/photo-1503264116251-35a269479413?auto=format&fit=crop&w=2000&q=80')
-                    center/cover fixed no-repeat;
+      background: url('https://images.unsplash.com/photo-1503264116251-35a269479413?auto=format&fit=crop&w=2000&q=80')
+                  center/cover fixed no-repeat;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
@@ -29,7 +27,7 @@
     const supabaseUrl = "https://clqghgxwazzyspzmfcsv.supabase.co"; // <-- YOUR SUPABASE PROJECT
     // Replace the placeholder below with your project's anon/public key.
     // Do NOT commit sensitive service_role keys to a public repo.
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNscWdoZ3h3YXp6eXNwem1mY3N2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MDI0ODUsImV4cCI6MjA3OTk3ODQ4NX0.Gdpm2nI-tsWS98NEzR-yPZ_AvLwOb4Qk31kU9q5jg24";
+    const supabaseKey = "REPLACE_WITH_YOUR_SUPABASE_ANON_KEY";
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     // ============== CONSTANTS & CONFIG ==============
@@ -274,7 +272,7 @@
       return (
         <div>
           {/* Header */}
-          <header className="bg-white shadow p-4 flex flex-col md:flex-row md:items-center gap-3 sticky top-0 z-10">
+          <header className="bg-white/70 backdrop-blur-sm shadow p-4 flex flex-col md:flex-row md:items-center gap-3 sticky top-0 z-10">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-cyan-600 text-white rounded-lg flex items-center justify-center font-bold">BB</div>
               <div>
@@ -287,7 +285,7 @@
                 value={q}
                 onChange={e => setQ(e.target.value)}
                 placeholder="Search businesses..."
-                className="flex-1 p-2 border rounded-l-lg outline-none"
+                className="flex-1 p-2 border rounded-l-lg outline-none bg-white/60 backdrop-blur-sm"
               />
             </div>
             <div className="flex gap-2">
@@ -305,11 +303,11 @@
             {categories.map(c => (
               <button
                 key={c}
-                className={`px-3 py-1 border rounded-full ${filterCat === c ? 'bg-cyan-600 text-white' : 'bg-white'}`}
+                className={`px-3 py-1 border rounded-full ${filterCat === c ? 'bg-cyan-600 text-white' : 'bg-white/60 backdrop-blur-sm'}`}
                 onClick={() => setFilterCat(c)}
               >{c}</button>
             ))}
-            <button className="px-3 py-1 border rounded-full" onClick={() => setFilterCat('')}>All</button>
+            <button className="px-3 py-1 border rounded-full bg-white/60 backdrop-blur-sm" onClick={() => setFilterCat('')}>All</button>
           </div>
 
           {/* Ads Grid */}
@@ -318,7 +316,7 @@
               <div className="col-span-full text-center text-gray-500">Loading...</div>
             ) : (
               filteredAds.map(a => (
-                <div key={a.id} className="bg-white p-3 rounded-xl shadow cursor-pointer" onClick={() => setModal(a)}>
+                <div key={a.id} className="bg-white/80 backdrop-blur-sm p-3 rounded-xl shadow cursor-pointer" onClick={() => setModal(a)}>
                   {a.img
                     ? <img className="h-32 w-full object-cover rounded mb-2" src={a.img} alt={a.title} />
                     : <div className="h-32 bg-gray-200 rounded mb-2 flex items-center justify-center text-gray-500 text-sm">{a.category}</div>
@@ -577,7 +575,7 @@
               <h2 className="text-lg font-bold mb-3">Admin Panel</h2>
               <div className="mb-2 font-semibold">All Ads:</div>
               {(ads || []).map(ad => (
-                <div key={ad.id} className="mb-1 bg-gray-100 p-2 rounded flex justify-between items-center">
+                <div key={ad.id} className="mb-1 bg-gray-100/70 backdrop-blur-sm p-2 rounded flex justify-between items-center">
                   <span>{ad.title} ({ad.author})</span>
                   <button
                     className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded"
@@ -587,7 +585,7 @@
               ))}
               <div className="mt-4 mb-2 font-semibold">All Users:</div>
               {loadingUsers ? <span>Loading users...</span> : (users || []).map(u => (
-                <div key={u.id} className="mb-1 bg-gray-100 p-2 rounded flex justify-between items-center">
+                <div key={u.id} className="mb-1 bg-gray-100/70 backdrop-blur-sm p-2 rounded flex justify-between items-center">
                   <span>{u.username} {u.is_admin && <b>(admin)</b>}</span>
                   {!u.is_admin && (
                     <button
@@ -610,7 +608,7 @@
     function ModalOverlay({ children }) {
       return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={e => e.target === e.currentTarget && window.dispatchEvent(new Event('close'))}>
-          <div className="bg-white p-5 rounded-xl max-w-lg w-full">{children}</div>
+          <div className="bg-white/95 backdrop-blur-sm p-5 rounded-xl max-w-lg w-full">{children}</div>
         </div>
       );
     }
