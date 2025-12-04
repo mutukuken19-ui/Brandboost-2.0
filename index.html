@@ -21,7 +21,7 @@
     const supabaseUrl = "https://clqghgxwazzyspzmfcsv.supabase.co"; // <-- YOUR SUPABASE PROJECT
     // Replace the placeholder below with your project's anon/public key.
     // Do NOT commit sensitive service_role keys to a public repo.
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNscWdoZ3h3YXp6eXNwem1mY3N2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MDI0ODUsImV4cCI6MjA3OTk3ODQ4NX0.Gdpm2nI-tsWS98NEzR-yPZ_AvLwOb4Qk31kU9q5jg24";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNscWdoZ3h3YXp6eXNwem1mY3N2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MDI0ODUsImV4cCI6MjA3OTk3ODQ4NX0.Gdpm2nI-ts[...]
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     // ============== CONSTANTS & CONFIG ==============
@@ -208,13 +208,14 @@
           return;
         }
 
-        let { error } = await supabase.from('ads').insert([
-          {
-            ...a,
-            author: user.username,
-            created: Date.now(),
-          }
-        ]);
+        // Build payload and strip internal-only metadata before inserting to DB
+        const payload = { ...a, author: user.username, created: Date.now() };
+        // remove any underscore-prefixed internal props that are not DB columns
+        delete payload._useSignedUrl;
+        delete payload._signedUrlExpiresSec;
+        delete payload._onProgress;
+
+        let { error } = await supabase.from('ads').insert([payload]);
         if (error) alert("Posting ad failed: " + error.message);
         fetchAds();
         setModal(null);
@@ -234,7 +235,13 @@
           return;
         }
 
-        let { error } = await supabase.from('ads').update(a).eq("id", a.id);
+        // Strip internal-only metadata before updating DB
+        const payload = { ...a };
+        delete payload._useSignedUrl;
+        delete payload._signedUrlExpiresSec;
+        delete payload._onProgress;
+
+        let { error } = await supabase.from('ads').update(payload).eq("id", a.id);
         if (error) alert("Update error: " + error.message);
         setEditAd(null);
         setModal(null);
@@ -605,6 +612,7 @@
   </script>
 </body>
 </html>
+
 
 
 
